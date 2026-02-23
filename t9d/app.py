@@ -23,7 +23,7 @@ from .engine import T9Engine
 from .overlay import OverlayWindow
 
 
-class NumpadT9:
+class T9App:
     """
     Full application.  Instantiate then call :meth:`run`.
 

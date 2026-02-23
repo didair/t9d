@@ -89,8 +89,8 @@ def main(argv: list[str] | None = None) -> None:
     print("=" * 54)
     print("  Press Ctrl+C to quit\n")
 
-    from .app import t9d
-    app = t9d(config)
+    from .app import T9App
+    app = T9App(config)
     app.run()
 
 
