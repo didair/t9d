@@ -1,6 +1,6 @@
 """
-numpad_t9.app
-=============
+t9d.app
+=======
 Main application class: wires together the keyboard listener,
 T9 engine, and overlay window.
 """
@@ -25,12 +25,12 @@ from .overlay import OverlayWindow
 
 class T9App:
     """
-    Full application.  Instantiate then call :meth:`run`.
+    Full application. Instantiate then call :meth:`run`.
 
     Example::
 
-        from numpad_t9 import NumpadT9, load_config
-        app = NumpadT9(load_config())
+        from t9d import T9App, load_config
+        app = T9App(load_config())
         app.run()
     """
 
@@ -47,31 +47,98 @@ class T9App:
         # ── Tkinter root (hidden — used only for after() scheduling) ──────────
         self.root = tk.Tk()
         self.root.withdraw()
-        self.root.title("NumpadT9")
+        self.root.title("t9d")
 
         # ── Overlay ───────────────────────────────────────────────────────────
         self.overlay = OverlayWindow(self.root, config.get("overlay", {}))
 
+        # ── Injected-key guard ────────────────────────────────────────────────
+        # When we re-inject non-numpad keys (so regular typing still works),
+        # the suppress=True listener would catch them again → infinite loop.
+        # We break the loop by tagging injected keys in this set and skipping
+        # them when we see them come back through the listener.
+        self._injecting: set[int] = set()
+
         # ── Global keyboard listener ──────────────────────────────────────────
+        # suppress=True intercepts every key before it reaches other apps.
+        # Numpad keys are consumed silently (handled by T9).
+        # All other keys are re-injected via self.kb so they pass through
+        # normally — the _injecting guard prevents the re-injection loop.
         self._listener = keyboard.Listener(
             on_press=self._on_press,
-            suppress=False,
+            on_release=self._on_release,
+            suppress=True,
         )
 
     # ── Key dispatch (listener thread → Tk main thread) ──────────────────────
 
     def _on_press(self, key: Key | KeyCode) -> None:
+        # If this is a key we injected ourselves, let it pass — don't re-handle.
+        key_id = id(key)
+        if key_id in self._injecting:
+            self._injecting.discard(key_id)
+            return
+
         action = self._key_to_action(key)
         if action:
+            # Numpad key — handle via T9, suppress the raw character.
             self.root.after(0, self._handle, action)
+        else:
+            # Non-numpad key — re-inject so it reaches the active window.
+            try:
+                self._injecting.add(id(key))
+                self.kb.press(key)
+            except Exception:
+                self._injecting.discard(id(key))
+
+    def _on_release(self, key: Key | KeyCode) -> None:
+        key_id = id(key)
+        if key_id in self._injecting:
+            self._injecting.discard(key_id)
+            return
+        if not self._key_to_action(key):
+            try:
+                self._injecting.add(id(key))
+                self.kb.release(key)
+            except Exception:
+                self._injecting.discard(id(key))
 
     @staticmethod
     def _key_to_action(key: Key | KeyCode) -> str | None:  # noqa: C901
-        """Map a pynput key event to a named action string."""
+        """
+        Map a pynput key event to a named action string.
+        Only matches physical numpad keys (Num Lock ON = VK codes 96-111).
+        Regular keyboard keys are never matched and pass through untouched.
+        """
         if key == Key.num_lock:
             return None
 
-        # Numpad keys when Num Lock is OFF (pynput reports these as named keys)
+        # ── Windows / Num Lock ON: VK codes 96-111 are numpad-exclusive ───────
+        if isinstance(key, KeyCode):
+            vk = getattr(key, "vk", None)
+            if vk is not None:
+                vk_map: dict[int, str] = {
+                    96:  "0",   # KP 0 → space / confirm
+                    97:  "1",   # KP 1 → PQRS
+                    98:  "2",   # KP 2 → TUV
+                    99:  "3",   # KP 3 → WXYZ
+                    100: "4",   # KP 4 → GHI
+                    101: "5",   # KP 5 → JKL
+                    102: "6",   # KP 6 → MNO
+                    103: "7",   # KP 7 → punctuation
+                    104: "8",   # KP 8 → ABC
+                    105: "9",   # KP 9 → DEF
+                    106: "backspace",      # KP *
+                    107: "next",           # KP +
+                    109: "prev",           # KP -
+                    110: "punct_confirm",  # KP .
+                    111: "delete_word",    # KP /
+                    13:  "confirm",        # KP Enter
+                }
+                return vk_map.get(vk)
+            return None
+
+        # ── Num Lock OFF: named navigation keys (fallback) ────────────────────
         named: dict[Key, str] = {
             Key.insert:    "0",
             Key.end:       "1",
@@ -83,42 +150,14 @@ class T9App:
             Key.up:        "8",
             Key.page_up:   "9",
             Key.delete:    "punct_confirm",
-            Key.esc:       "cancel",
-            Key.enter:     "confirm",
         }
         if key in named:
             return named[key]
 
-        if isinstance(key, KeyCode):
-            ch = key.char or ""
-            vk = getattr(key, "vk", None)
-
-            if ch in "0123456789":
-                return ch
-            char_map: dict[str, str] = {
-                "*": "backspace",
-                "/": "delete_word",
-                "+": "next",
-                "-": "prev",
-                ".": "punct_confirm",
-            }
-            if ch in char_map:
-                return char_map[ch]
-
-            # Windows virtual key codes for numpad (fallback)
-            if vk is not None:
-                vk_map: dict[int, str] = {
-                    96: "0",  97: "1",  98: "2",  99: "3",
-                    100: "4", 101: "5", 102: "6", 103: "7",
-                    104: "8", 105: "9",
-                    106: "backspace",
-                    107: "next",
-                    109: "prev",
-                    110: "punct_confirm",
-                    111: "delete_word",
-                    13:  "confirm",
-                }
-                return vk_map.get(vk)
+        if key == Key.esc:
+            return "cancel"
+        if key == Key.enter:
+            return "confirm"
 
         return None
 
@@ -127,9 +166,18 @@ class T9App:
     def _handle(self, action: str) -> None:  # noqa: C901
         e = self.engine
 
-        if action in "23456789":
-            e.push_digit(action)
-            self._refresh()
+        if action in "123456789":
+            # Key 7 is punctuation-only (no letter group)
+            if action == "7":
+                if e.has_input:
+                    self._type(e.confirm())
+                    self.overlay.hide()
+                punct = self.punct_list[self.punct_index % len(self.punct_list)]
+                self.punct_index += 1
+                self._type(punct)
+            else:
+                e.push_digit(action)
+                self._refresh()
 
         elif action == "0":
             if e.has_input:
@@ -137,14 +185,6 @@ class T9App:
             else:
                 self._tap(Key.space)
             self.overlay.hide()
-
-        elif action == "1":
-            if e.has_input:
-                self._type(e.confirm())
-                self.overlay.hide()
-            punct = self.punct_list[self.punct_index % len(self.punct_list)]
-            self.punct_index += 1
-            self._type(punct)
 
         elif action == "next":
             if e.has_input:
@@ -217,11 +257,6 @@ class T9App:
     # ── Run ───────────────────────────────────────────────────────────────────
 
     def _poll_signals(self) -> None:
-        """
-        Called every 200ms on the Tk main thread.
-        Tkinter's mainloop() blocks Python-level signal delivery entirely,
-        so Ctrl+C never fires without this periodic re-entry into Python.
-        """
         if self._stop:
             self.root.destroy()
             return
@@ -236,14 +271,13 @@ class T9App:
 
         self._stop = False
 
-        # Let Ctrl+C set the stop flag from any thread
         def _sigint_handler(sig, frame):
             self._stop = True
 
         signal.signal(signal.SIGINT, _sigint_handler)
 
         self._listener.start()
-        self.root.after(200, self._poll_signals)   # kick off the signal poller
-        self.root.mainloop()                        # blocks until root.destroy()
+        self.root.after(200, self._poll_signals)
+        self.root.mainloop()
         self._listener.stop()
         print("\n[T9] Stopped.")

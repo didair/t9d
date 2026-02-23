@@ -14,14 +14,15 @@ from pathlib import Path
 # ─── T9 character maps ────────────────────────────────────────────────────────
 
 T9_MAP: dict[str, str] = {
-    "2": "abc",
-    "3": "def",
+    "1": "pqrs",
+    "2": "tuv",
+    "3": "wxyz",
     "4": "ghi",
     "5": "jkl",
     "6": "mno",
-    "7": "pqrs",
-    "8": "tuv",
-    "9": "wxyz",
+    # 7 = punctuation (no letter group)
+    "8": "abc",
+    "9": "def",
 }
 
 # Diacritic → T9 digit.
