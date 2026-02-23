@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "t9d"
+version = "1.0.0"
+description = "System-wide T9 predictive text input via the numpad, with a floating overlay and multi-language support."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+dependencies = [
+    "pynput>=1.7",
+]
+
+[project.optional-dependencies]
+# Install dev tools with:  pip install -e ".[dev]"
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "ruff>=0.4",        # linter + formatter (replaces flake8 + black)
+    "mypy>=1.9",
+]
+
+[project.scripts]
+# After install, run the app with just:  t9d
+t9d = "t9d.cli:main"
+
+[project.urls]
+Homepage   = "https://github.com/didair/t9d"
+Repository = "https://github.com/didair/t9d"
+Issues     = "https://github.com/didair/t9d/issues"
+
+# ── Package discovery ──────────────────────────────────────────────────────────
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["t9d*"]
+
+[tool.setuptools.package-data]
+# Bundle the default wordlists and config so they ship with the package
+"t9d" = [
+    "wordlists/*.txt",
+    "config.json",
+]
+
+# ── Ruff (linter / formatter) ──────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+# ── Mypy (type checking) ───────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.10"
+strict = false
+ignore_missing_imports = true
+
+# ── Pytest ─────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]

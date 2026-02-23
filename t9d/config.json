@@ -1,0 +1,36 @@
+{
+  "_comment": "Numpad T9 configuration. Edit this file to customize behaviour.",
+
+  "languages": ["en"],
+
+  "_languages_help": [
+    "List language codes to load. Multiple languages are merged at runtime.",
+    "Each code must match a .txt file in the wordlists/ directory.",
+    "Examples:",
+    "  Single language  : [\"en\"]",
+    "  Bilingual        : [\"en\", \"sv\"]",
+    "  Swedish only     : [\"sv\"]",
+    "Add any language by dropping a matching .txt wordlist into wordlists/."
+  ],
+
+  "wordlist_dir": "wordlists",
+
+  "_wordlist_dir_help": "Path to the wordlists folder, relative to this config file.",
+
+  "user_dict_dir": "~/.config/t9d",
+
+  "_user_dict_dir_help": [
+    "Where per-language personal dictionaries are stored.",
+    "Each active language gets its own file, e.g. user_en.json, user_sv.json.",
+    "Supports ~ for home directory."
+  ],
+
+  "overlay": {
+    "max_candidates": 6,
+    "offset_x": 16,
+    "offset_y": 24,
+    "opacity": 0.93
+  },
+
+  "punctuation": [".", ",", "!", "?", "-", "'", "\"", "(", ")", ":", ";", "@", "#"]
+}
