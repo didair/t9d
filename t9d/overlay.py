@@ -21,6 +21,7 @@ class OverlayWindow:
         self.root = root
         self.cfg = overlay_cfg
         self._candidate_labels: list[tk.Label] = []
+        self._visible: bool = False
         self._build()
 
     # ── Construction ─────────────────────────────────────────────────────────
@@ -70,6 +71,9 @@ class OverlayWindow:
         self._candidate_labels.clear()
 
     # ── Public API ────────────────────────────────────────────────────────────
+    @property
+    def is_visible(self) -> bool:
+        return self._visible
 
     def update(
         self,
@@ -118,10 +122,12 @@ class OverlayWindow:
         self._reposition()
         self.win.deiconify()
         self.win.lift()
+        self._visible = True
 
     def hide(self) -> None:
         if self.win:
             self.win.withdraw()
+            self._visible = False
 
     def show_toast(self, message: str, duration_ms: int = 1600) -> None:
         """Briefly flash a status message (e.g. 'Learned: home')."""
@@ -141,4 +147,5 @@ class OverlayWindow:
         self._reposition()
         self.win.deiconify()
         self.win.lift()
+        self._visible = True
         self.root.after(duration_ms, self.hide)
